@@ -84,14 +84,14 @@ G_exc.a = 0.*nS
 
 
 # external drive--------------------------------------------------------------------------
-ext_inp = 2*Hz
+ext_inp = 4*Hz
 P_ed = PoissonGroup(8000, rates=ext_inp)
 
 # var_P = TimedArray([4*Hz,4*Hz,4*Hz,4*Hz,8*Hz], duration/5)
 # var_P = TimedArray(4/2*(1-np.cos(200*np.pi*tt))*Hz, defaultclock.dt)
 # P_ed=PoissonGroup(8000, rates='var_P(t)')
 
-var_STIM = TimedArray([0*Hz,0*Hz,10*Hz,0*Hz], duration/4)
+var_STIM = TimedArray([0*Hz,0*Hz,20*Hz,0*Hz], duration/4)
 STIM_ed=PoissonGroup(500, rates='var_STIM(t)')
 
 
@@ -231,7 +231,7 @@ plt.legend()
 name_fig='TNetwork_PLOT.png'
 plt.savefig(name_fig)
 
-# global variables
+# SAVE
 np.save('TNetwork_out_stim', np.vstack((popRateG_exc,popRateG_inh)))
 
 # name_rates='FR_2pop_Reg_ext_'+str(ext_inp)+'.npy'

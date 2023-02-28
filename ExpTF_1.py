@@ -15,7 +15,7 @@ duration = TotTime*ms
 
 FRout_inh=[]
 FRout_exc=[]
-Npts = 20  #Resolution of the measured TF
+Npts = 5  #Resolution of the measured TF
 i = 0
 j = 1
 for rate_exc in linspace(0, 35, Npts):
