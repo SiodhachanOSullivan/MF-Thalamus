@@ -7,13 +7,30 @@ from scipy.special import erfc
 from mytools import progressBar
 
 
-def TF(P,fexc,finh,adapt, Nexc,Ninh,Qe,Qi,Cm,El):
+def TF(typ,fexc,finh,adapt):
+
+    if typ=='TC':
+        P = PTC
+        Nexc=800
+        Ninh=25
+        Qe=1e-9
+        Qi=6e-9
+        Cm=160e-12
+        El=-65e-3
+    elif typ=='RE':
+        P = PRE
+        Nexc=400
+        Ninh=150
+        Qe=4e-9
+        Qi=1e-9
+        Cm=200e-12
+        El=-75e-3
 
     fe = fexc*Nexc
     fi = finh*Ninh
 
-    fe+=1e-9;
-    fi+=1e-9;
+    # fe+=1e-9;
+    # fi+=1e-9;
     
     muGi = Qi*Ti*fi;
     muGe = Qe*Te*fe;
@@ -27,6 +44,8 @@ def TF(P,fexc,finh,adapt, Nexc,Ninh,Qe,Qi,Cm,El):
     
     Ue =  Qe/muG*(Ee-muV);
     Ui = Qi/muG*(Ei-muV);
+    if fe<0:fe=0
+    if fi<0:fi=0
     
     sV = np.sqrt(fe*(Ue*Te)*(Ue*Te)/2./(Te+Tm)+fi*(Ui*Ti)*(Ui*Ti)/2./(Ti+Tm));
     
@@ -78,8 +97,9 @@ PRE=np.load('data\\NEW2params_RE.npy')
 
 
 
-tfinal=1. # s
-dt=1e-4 # s
+tfinal=1 # s
+dt=1e-3 # s
+df=1e-7 # Hz
 tsteps=int(tfinal/dt)
 
 t = np.linspace(0, tfinal, tsteps)
@@ -101,31 +121,47 @@ external_input=np.full(tsteps, 4.)
 
 
 #=== STIM (Peripherie?)
-stim=np.zeros(tsteps)
+# stim=np.zeros(tsteps)
 # stim[int(tsteps*2/4):int(tsteps*3/4)] = 20.
 # stim[int(tsteps/2):int(tsteps/2)+50] = 20
 
 
 
-fecont=0;
-ficont=0;
+fecont=2;
+ficont=10;
 w=ficont*b*Tw
-cee,cei,cii,cie=0,0,0,0
+cee,cei,cii,cie=10,10,10,0
 
 
 LSw=[]
 LSfe,LSfi=[],[]
 LScee,LScii=[],[]
-dvidviFe,dvedveFi,dvedviFi,dvidviFi,dvidveFi=0,0,0,0,0
+test=[]
 
 for i in progressBar(range(len(t))):
     
     fecontold=fecont
     ficontold=ficont
-    wold = w
 
-    Fe = TF(PTC,external_input[i]+stim[i]/8,ficont,0, Nexc=800,Ninh=25,Qe=1e-9,Qi=6e-9,Cm=160e-12,El=-65e-3)
-    Fi = TF(PRE,external_input[i]+fecont/16,ficont,w, Nexc=400,Ninh=150,Qe=4e-9,Qi=1e-9,Cm=200e-12,El=-75e-3)
+    # TFs
+    Fe = TF('TC',external_input[i]+stim[i]/8,ficont,0)
+    Fi = TF('RE',external_input[i]+fecont/16,ficont,w)
+    # TF derivatives
+    dveFe = ( TF('TC',external_input[i]+stim[i]/8+df,ficont,0) - Fe )/df
+    dviFe = ( TF('TC',external_input[i]+stim[i]/8,ficont+df,0) - Fe )/df
+    dveFi = ( TF('RE',external_input[i]+fecont/16+df,ficont,w) - Fi )/df
+    dviFi = ( TF('RE',external_input[i]+fecont/16,ficont+df,w) - Fi )/df
+    # dveFe,dviFe,dveFi,dviFi=0,0,0,0
+    dvedveFe = ( dveFe*df - Fe + TF('TC',external_input[i]+stim[i]/8-df,ficont,0) )/df**2
+    dvidveFe = ( ( TF('TC',external_input[i]+stim[i]/8+df,ficont+df,0) - Fe )/df - dveFe )/df
+    dvidviFe = ( dviFe*df - Fe + TF('TC',external_input[i]+stim[i]/8,ficont-df,0) )/df**2
+    dvedviFe = ( ( TF('TC',external_input[i]+stim[i]/8+df,ficont+df,0) - Fe )/df - dviFe )/df
+    dvedveFi = ( dveFi*df - Fi + TF('RE',external_input[i]+fecont/16-df,ficont,w) )/df**2
+    dvidveFi = ( ( TF('RE',external_input[i]+fecont/16+df,ficont+df,w) - Fi )/df - dveFi )/df
+    dvidviFi = ( dviFi*df - Fi + TF('RE',external_input[i]+fecont/16,ficont-df,w) )/df**2
+    dvedviFi = ( ( TF('RE',external_input[i]+fecont/16+df,ficont+df,w) - Fi )/df - dviFi )/df
+    # dvidviFe,dvedveFi,dvedviFi,dvidviFi,dvidveFi=0,0,0,0,0
+
 
     # first order MF
     # fecont += dt/T*(Fe-fecont)
@@ -133,46 +169,43 @@ for i in progressBar(range(len(t))):
     # w += dt*(-w/Tw+b*ficontold)
 
     # second order MF
-    fecont += dt/T*( (Fe-fecont) + cii*dvidviFe/2 )
-    # ficont += dt/T*( (Fi-ficont) + (cee*dvedveFi+cei*dvedviFi+cii*dvidviFi+cie*dvidveFi)/2 )
-    ficont += dt/T*( (Fi-ficont) + (cee*dvedveFi+cii*dvidviFi)/2 )
-    # w += dt*(-w/Tw+b*ficontold)
+    fecont += dt/T*( (Fe-fecont) + (cee*dvedveFe+cei*dvedviFe+cii*dvidviFe+cei*dvidveFe)/2 )
+    ficont += dt/T*( (Fi-ficont) + (cee*dvedveFi+cei*dvedviFi+cii*dvidviFi+cei*dvidveFi)/2 )
+    w += dt*(-w/Tw+b*ficontold)
 
     LSfe.append(float(fecont))
     LSfi.append(float(ficont))
     LSw.append(float(w))
 
-    # derivatives
-    dviFe = ( TF(PTC,external_input[i]+stim[i]/8,ficont,0, Nexc=800,Ninh=25,Qe=1e-9,Qi=6e-9,Cm=160e-12,El=-65e-3) - Fe )/(ficont-ficontold)
-    dveFi = ( TF(PRE,external_input[i]+fecont/16,ficontold,wold, Nexc=400,Ninh=150,Qe=4e-9,Qi=1e-9,Cm=200e-12,El=-75e-3) - Fi )/(fecont-fecontold)
-    dviFi = ( TF(PRE,external_input[i]+fecontold/16,ficont,wold, Nexc=400,Ninh=150,Qe=4e-9,Qi=1e-9,Cm=200e-12,El=-75e-3) - Fi )/(ficont-ficontold)
-    dvidviFe = ( dviFe*(ficont-ficontold) - Fe + TF(PTC,external_input[i]+stim[i]/8,2*ficontold-ficont,0, Nexc=800,Ninh=25,Qe=1e-9,Qi=6e-9,Cm=160e-12,El=-65e-3) )/(ficont-ficontold)**2
-    dvedveFi = ( dveFi*(fecont-fecontold) - Fi + TF(PRE,external_input[i]+(2*fecontold-fecont)/16,ficontold,wold, Nexc=400,Ninh=150,Qe=4e-9,Qi=1e-9,Cm=200e-12,El=-75e-3) )/(fecont-fecontold)**2
-    # dvidveFi = ( ( TF(PRE,external_input[i]+fecont/16,ficont,wold, Nexc=400,Ninh=150,Qe=4e-9,Qi=1e-9,Cm=200e-12,El=-75e-3) - Fi )/(fecont-fecontold) - dveFi )/(ficont-ficontold)
-    dvidviFi = ( dviFi*(ficont-ficontold) - Fi + TF(PRE,external_input[i]+fecontold/16,2*ficontold-ficont,wold, Nexc=400,Ninh=150,Qe=4e-9,Qi=1e-9,Cm=200e-12,El=-75e-3) )/(ficont-ficontold)**2
-    # dvedviFi = ( ( TF(PRE,external_input[i]+fecont/16,ficont,wold, Nexc=400,Ninh=150,Qe=4e-9,Qi=1e-9,Cm=200e-12,El=-75e-3) - Fe )/(ficont-ficontold) - dviFi )/(fecont-fecontold)
     # covariances
-    # cee += dt/T*( Fe*(1/T-Fe)/500 + (Fe-fecontold)**2 + cei*dveFi + cie*dveFi - 2*cee)
-    # cei += dt/T*( (Fe-fecontold)*(Fi-ficontold) + cei*dveFi + cei*dviFe + cii*dviFi- 2*cei)
-    # cii += dt/T*( Fi*(1/T-Fi)/500 + (Fi-ficontold)**2 + cie*dviFe + 2*(cii*dviFi) + cei*dviFe - 2*cii)
-    # cie += dt/T*( (Fi-ficontold)*(Fe-fecontold) + cie*dviFe + cii*dviFi + cie*dveFi - 2*cie)
-    # covariances SIMPLE
-    cee += dt/T*( Fe*(1/T-Fe)/500 + (Fe-fecontold) - 2*cee)
-    cii += dt/T*( Fi*(1/T-Fi)/500 + (Fi-ficontold) + (cii*dviFi)**2 - 2*cii)
+    cee += dt/T*( Fe*(1/T-Fe)/500 + (Fe-fecontold)**2 + 2*cee*dveFe + 2*cei*dveFi - 2*cee)
+    cei += dt/T*( (Fe-fecontold)*(Fi-ficontold) + cee*dveFe + cei*dveFi + cei*dviFe + cii*dviFi- 2*cei)
+    cii += dt/T*( Fi*(1/T-Fi)/500 + (Fi-ficontold)**2 + 2*cei*dviFe + 2*cii*dviFi - 2*cii)
+    # cie += dt/T*( (Fi-ficontold)*(Fe-fecontold) + cie*dviFe + cii*dviFi + cee*dveFe + cie*dveFi - 2*cie)
 
     LScee.append(float(cee))
     LScii.append(float(cii))
 
-LSfe=np.array(LSfe)
-LSfi=np.array(LSfi)
+
+    test.append(cee)
+
+
+np.savetxt('test.txt',test)
+# for the std plot
 LScee=np.array(LScee)
 LScii=np.array(LScii)
+# LScee[:25]=0
+# LScii[:25]=0
+
 #-SAVE
 # np.save('data\\MF_out_stim', np.vstack((LSfe,LSfi)))
 # np.save('data\\MF_out_cov', np.vstack((LScee,LScii)))
 
 
-# plt.plot(LScee, c='black')
+# plt.plot(test)
+# plt.ylim(0,1)
+# # plt.plot(LScee, c='g')
+# # plt.plot(LScii, c='r')
 # plt.show()
 
 fig=plt.figure(figsize=(12,4))
@@ -184,11 +217,11 @@ ax.set_zlabel('LSw (pA)')
 # plt.savefig('Phasespace3D.png')
 
 ax = fig.add_subplot(1,2,2)
-ax.plot(t, LSfe, c='b', label='fe')
-ax.fill_between(t, LSfe-LScee, LSfe+LScee, color='b', label='cee', alpha=0.2)
-ax.plot(t, LSfi, c='r', label='fi')
-ax.fill_between(t, LSfi-LScii, LSfi+LScii, color='r', label='cii', alpha=0.2)
-ax.plot(t,external_input, c='black', ls='--', label='extI')
+ax.plot(t, LSfe, c='b', label='LSfe')
+# ax.fill_between(t, LSfe-LScee, LSfe+LScee, color='b', label='cee', alpha=0.2)
+ax.plot(t, LSfi, c='r', label='LSfi')
+# ax.fill_between(t, LSfi-LScii, LSfi+LScii, color='r', label='cii', alpha=0.2)
+ax.plot(t,external_input, c='black', ls='--', label='Dext')
 ax.legend()
 ax.set_xlabel('time (s)')
 ax.set_ylabel('frequencies (Hz)')
