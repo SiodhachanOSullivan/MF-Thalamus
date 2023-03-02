@@ -86,51 +86,47 @@ Ee=0
 Ei=-80*1.e-3
 
 
-
-T=0.01
-
-
-
 PTC=np.load('data\\NEW2params_TC.npy')
 PRE=np.load('data\\NEW2params_RE.npy')
 
 
 
+T=30e-3
 
 tfinal=1 # s
-dt=1e-3 # s
+dt=5e-4 # s
 df=1e-7 # Hz
 tsteps=int(tfinal/dt)
 
 t = np.linspace(0, tfinal, tsteps)
 
 #=== CORTEX external input
-# constant
+#--- constant
 external_input=np.full(tsteps, 4.)
 # external_input+=np.random.randn(tsteps)/2
 
-# timeframe
+#--- timeframe
 # external_input=np.zeros(tsteps)
 # external_input[:1000] = 4
 # external_input[int(tsteps*2/4):int(tsteps*3/4)] = 2
 
-# sinus
+#--- sinus
 # ampl=4
 # freq=10
 # external_input = ampl/2*(1-np.cos(freq*2*np.pi*t))
 
 
 #=== STIM (Peripherie?)
-# stim=np.zeros(tsteps)
+stim=np.zeros(tsteps)
 # stim[int(tsteps*2/4):int(tsteps*3/4)] = 20.
 # stim[int(tsteps/2):int(tsteps/2)+50] = 20
 
 
 
-fecont=2;
+fecont=1;
 ficont=10;
 w=ficont*b*Tw
-cee,cei,cii,cie=10,10,10,0
+cee,cei,cii=.5,.5,.5
 
 
 LSw=[]
@@ -142,10 +138,12 @@ for i in progressBar(range(len(t))):
     
     fecontold=fecont
     ficontold=ficont
+    TCfe = external_input[i]+stim[i]/8 +1e-9
+    REfe = external_input[i]+fecont/16
 
     # TFs
-    Fe = TF('TC',external_input[i]+stim[i]/8,ficont,0)
-    Fi = TF('RE',external_input[i]+fecont/16,ficont,w)
+    Fe = TF('TC',TCfe,ficont,0)
+    Fi = TF('RE',REfe,ficont,w)
     # TF derivatives
     dveFe = ( TF('TC',external_input[i]+stim[i]/8+df,ficont,0) - Fe )/df
     dviFe = ( TF('TC',external_input[i]+stim[i]/8,ficont+df,0) - Fe )/df
@@ -164,8 +162,8 @@ for i in progressBar(range(len(t))):
 
 
     # first order MF
-    # fecont += dt/T*(Fe-fecont)
-    # ficont += dt/T*(Fi-ficont)
+    fecont += dt/T*(Fe-fecont)
+    ficont += dt/T*(Fi-ficont)
     # w += dt*(-w/Tw+b*ficontold)
 
     # second order MF
