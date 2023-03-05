@@ -96,8 +96,8 @@ def MFw(typ, w, fexc, finh):
 
 # constants
 Gl=10*1.e-9
-Tw=200*1.e-3
-b=0.01*1e-9
+Tw=200*1e-3
+b=10*1e-12
 
 Ti=5*1.e-3 # Tsyn RE
 Te=5*1.e-3 # Tsyn TC
@@ -125,7 +125,7 @@ t = np.linspace(0, tfinal, tsteps)
 
 #=CORTEX external input
 #---constant
-external_input=np.full(tsteps, 2.)
+external_input=np.full(tsteps, 10.)
 # external_input+=np.random.randn(tsteps)/2
 
 #-timeframe
@@ -138,7 +138,6 @@ external_input=np.full(tsteps, 2.)
 # freq=10
 # external_input = ampl/2*(1-np.cos(freq*2*np.pi*t))
 
-
 #=STIM (Peripherie?)
 stim=np.zeros(tsteps)
 # stim[int(tsteps*2/4):int(tsteps*3/4)] = 20.
@@ -146,8 +145,8 @@ stim=np.zeros(tsteps)
 
 
 #-initial conds
-fecont=1;
-ficont=60;
+fecont=0;
+ficont=30;
 we=fecont*b*Tw
 wi=ficont*b*Tw
 cee,cei,cii=.5,.5,.5
@@ -162,9 +161,9 @@ for i in progressBar(range(len(t))):
     
     fecontold=fecont
     ficontold=ficont
-    weold,wiold=we,wi
+    # weold,wiold=we,wi
     ceeold,ceiold,ciiold=cee,cei,cii
-    TCfe = external_input[i]+stim[i]/8 +1e-9
+    TCfe = external_input[i]+stim[i]/8
     REfe = external_input[i]+fecont/16
 
     # TFs
@@ -173,10 +172,10 @@ for i in progressBar(range(len(t))):
 
     #-TF derivatives
     df=1e-5
-    dveFe = ( TF('TC',TCfe+df,ficont,we) - Fe )/df
+    dveFe = ( TF('TC',TCfe+df/24,ficont,we) - Fe )/df/24
     dviFe = ( TF('TC',TCfe,ficont+df,we) - Fe )/df
-    dveFi = ( TF('RE',REfe+df,ficont,wi) - Fi )/df
-    dviFi = ( TF('RE',REfe,ficont+df,wi) - Fi )/df
+    dveFi = ( TF('RE',REfe+df/12,ficont,wi) - Fi )/df/12
+    dviFi = ( TF('RE',REfe,ficont+df/6,wi) - Fi )/df/6
     # dveFe = (TF('TC',TCfe+df/4,ficont,0)-TF('TC',TCfe-df/4,ficont,0))/df/2
     # dviFe = (TF('TC',TCfe,ficont+df/2,0)-TF('TC',TCfe,ficont-df/2,0))/df
     # dveFi = (TF('RE',REfe+df/2,ficont,w)-TF('RE',REfe-df/2,ficont,w))/df
@@ -215,8 +214,8 @@ for i in progressBar(range(len(t))):
     # fecont += dt/T*( (Fe-fecont) + (cee*dvedveFe+cei*dvedviFe+cii*dvidviFe+cei*dvidveFe)/2 )
     # ficont += dt/T*( (Fi-ficont) + (cee*dvedveFi+cei*dvedviFi+cii*dvidviFi+cei*dvidveFi)/2 )
     
-    we += dt*MFw('TC',we,TCfe,ficontold)
-    wi += dt*MFw('RE',wi,REfe,ficontold)
+    we += dt*MFw('TC',we,fecontold,0) # fecontold = v_e here
+    wi += dt*MFw('RE',wi,REfe,ficontold) # ficontold = v_i = finh (for MPF)
 
     if fecont<1e-9: fecont=1e-9
     if ficont<1e-9: ficont=1e-9
@@ -262,12 +261,13 @@ LScii=np.array(LScii)
 #-SAVE
 # np.save('data\\MF_out_adaptnew', np.vstack((LSfe,LSfi)))
 np.save('data\\MF_out_we', np.vstack((LSfe,LSfi)))
+np.save('data\\MF_out_cov', np.vstack((LScee,LScii)))
 
 #-testplots
 # plt.plot(test)
-plt.plot(LScee, c='b')
-plt.plot(LScii, c='r')
-plt.show()
+# plt.plot(LScee, c='b')
+# plt.plot(LScii, c='r')
+# plt.show()
 
 #-PLOT firing rates and phasespace
 fig, ax=plt.subplots(1,2, figsize=(9,3), width_ratios=[1,3])
@@ -278,9 +278,9 @@ ax[0].set_ylabel('LSfi (Hz)')
 # plt.savefig('Phasespace3D.png')
 
 ax[1].plot(t, LSfe, c='b', label='LSfe')
-# ax[1].fill_between(t, LSfe-LScee, LSfe+LScee, color='b', label='cee', alpha=0.2)
+ax[1].fill_between(t, LSfe-LScee, LSfe+LScee, color='b', label='cee', alpha=0.2)
 ax[1].plot(t, LSfi, c='r', label='LSfi')
-# ax[1].fill_between(t, LSfi-LScii, LSfi+LScii, color='r', label='cii', alpha=0.2)
+ax[1].fill_between(t, LSfi-LScii, LSfi+LScii, color='r', label='cii', alpha=0.2)
 ax[1].plot(t,external_input, c='black', ls='--', label='Dext')
 ax[1].legend()
 ax[1].set_xlabel('time (s)')
