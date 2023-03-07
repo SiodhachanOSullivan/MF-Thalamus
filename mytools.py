@@ -13,4 +13,11 @@ def progressBar(iterable, prefix='', suffix='', decimals=1, length=50, fill='=',
             yield item
             printProgressBar(i + 1)
         print() # Print New Line on Complete
+
+import numpy as np
+def double_gaussian(t, t0, T1, T2, amplitude):
+    
+    return amplitude*(\
+                      np.exp(-(t-t0)**2/2./T1**2)*(t<t0)+\
+                      np.exp(-(t-t0)**2/2./T2**2)*(t>t0))
         

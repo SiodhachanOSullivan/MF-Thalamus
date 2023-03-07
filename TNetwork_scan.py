@@ -13,8 +13,8 @@ duration = TotTime*ms
 tt = np.linspace(0,TotTime, int(TotTime/DT))
 
 
-Npts=10
-frange=np.linspace(0.01,2,Npts)
+Npts=15
+frange=np.linspace(0.01,100,Npts)
 
 meanRate_inh=[]
 meanRate_exc=[]
