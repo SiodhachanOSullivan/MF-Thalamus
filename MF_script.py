@@ -113,7 +113,7 @@ PRE=np.load('data\\NEW2params_RE.npy')
 
 
 #=MF and numerics params
-T=30e-3
+T=10e-3
 
 tfinal=2 # s
 dt=5e-4 # s
@@ -125,7 +125,7 @@ t = np.linspace(0, tfinal, tsteps)
 
 #=CORTEX external input
 #---constant
-external_input=np.full(tsteps, 2.)
+external_input=np.full(tsteps, 4.)
 # external_input+=np.random.randn(tsteps)/2
 
 #-timeframe
@@ -147,7 +147,7 @@ stim=double_gaussian(t, 1, 0.01, 0.2, 20)
 
 #-initial conds
 fecont=0;
-ficont=40;
+ficont=0;
 we=fecont*b*Tw
 wi=ficont*b*Tw
 cee,cei,cii=.5,.5,.5
@@ -166,7 +166,7 @@ for i in progressBar(range(len(t))):
     ficontold=ficont
     # weold,wiold=we,wi
     ceeold,ceiold,ciiold=cee,cei,cii
-    TCfe = external_input[i]+stim[i]/4
+    TCfe = external_input[i]+stim[i]/8
     REfe = external_input[i]+fecont/16
 
     # TFs
@@ -185,14 +185,14 @@ for i in progressBar(range(len(t))):
     dviFi = (TF('RE',REfe,ficont+df/2,wi)-TF('RE',REfe,ficont-df/2,wi))/df
 
     # df=1e-6
-    # dvedveFe = ( dveFe*df - Fe + TF('TC',TCfe-df,ficont,0) )/df**2
-    # dvidveFe = ( ( TF('TC',TCfe+df,ficont+df,0) - Fe )/df - dveFe )/df
-    # dvidviFe = ( dviFe*df - Fe + TF('TC',TCfe,ficont-df,0) )/df**2
-    # dvedviFe = ( ( TF('TC',TCfe+df,ficont+df,0) - Fe )/df - dviFe )/df
-    # dvedveFi = ( dveFi*df - Fi + TF('RE',REfe-df,ficont,w) )/df**2
-    # dvidveFi = ( ( TF('RE',REfe+df,ficont+df,w) - Fi )/df - dveFi )/df
-    # dvidviFi = ( dviFi*df - Fi + TF('RE',REfe,ficont-df,w) )/df**2
-    # dvedviFi = ( ( TF('RE',REfe+df,ficont+df,w) - Fi )/df - dviFi )/df
+    # dvedveFe = ( dveFe*df - Fe + TF('TC',TCfe-df,ficont,we) )/df**2
+    # dvidveFe = ( ( TF('TC',TCfe+df,ficont+df,we) - Fe )/df - dveFe )/df
+    # dvidviFe = ( dviFe*df - Fe + TF('TC',TCfe,ficont-df,we) )/df**2
+    # dvedviFe = ( ( TF('TC',TCfe+df,ficont+df,we) - Fe )/df - dviFe )/df
+    # dvedveFi = ( dveFi*df - Fi + TF('RE',REfe-df,ficont,wi) )/df**2
+    # dvidveFi = ( ( TF('RE',REfe+df,ficont+df,wi) - Fi )/df - dveFi )/df
+    # dvidviFi = ( dviFi*df - Fi + TF('RE',REfe,ficont-df,wi) )/df**2
+    # dvedviFi = ( ( TF('RE',REfe+df,ficont+df,wi) - Fi )/df - dviFi )/df
     dvedveFe = ( TF('TC',TCfe+df,ficont,we) - 2*Fe + TF('TC',TCfe-df,ficont,we) )/df**2
     dvidveFe = ( (TF('TC',TCfe+df/2,ficont+df/2,we)-TF('TC',TCfe-df/2,ficont+df/2,we)) - (TF('TC',TCfe+df/2,ficont-df/2,we)-TF('TC',TCfe-df/2,ficont-df/2,we)) )/df**2
     dvidviFe = ( TF('TC',TCfe,ficont+df,we) - 2*Fe + TF('TC',TCfe,ficont-df,we) )/df**2
@@ -233,18 +233,18 @@ for i in progressBar(range(len(t))):
 
 
     #-covariances EULER
-    # cee += dt/T*( Fe*(1/T-Fe)/500 + (Fe-fecontold)**2 + 2*cee*dveFe + 2*cei*dviFe - 2*cee)
-    # cei += dt/T*( (Fe-fecontold)*(Fi-ficontold) + cei*dveFe + cee*dveFi + cii*dviFe + cei*dviFi - 2*cei)
-    # cii += dt/T*( Fi*(1/T-Fi)/500 + (Fi-ficontold)**2 + 2*cii*dviFi + 2*cei*dveFi - 2*cii)
+    cee += dt/T*( Fe*(1/T-Fe)/500 + (Fe-fecontold)**2 + 2*cee*dveFe + 2*ceiold*dviFe - 2*cee)
+    cei += dt/T*( (Fe-fecontold)*(Fi-ficontold) + cei*dveFe + ceeold*dveFi + ciiold*dviFe + cei*dviFi - 2*cei)
+    cii += dt/T*( Fi*(1/T-Fi)/500 + (Fi-ficontold)**2 + 2*cii*dviFi + 2*ceiold*dveFi - 2*cii)
     # cee1 += dt/T*( Fe*(1/T-Fe)/500 + (Fe-fecontold)**2 -2*cee)#+ 2*cee*dveFe + 2*cei*dviFe - 2*cee)
     # cii1 += dt/T*( Fi*(1/T-Fi)/500 + (Fi-ficontold)**2 -2*cii)#+ 2*cii*dviFi + 2*cei*dveFi - 2*cii)
     #-covs HEUN
-    cee += dt/T*( Fe*(1/T-Fe)/500 + (Fe-fecontold)**2 + 2*cee*dveFe + 2*cei*dviFe - 2*cee)
-    cee = ceeold + dt/T*( Fe*(1/T-Fe)/500 + (Fe-fecontold)**2 + ceeold*dveFe + 2*cei*dviFe - ceeold + cee*dveFe - cee)
-    cei += dt/T*( (Fe-fecontold)*(Fi-ficontold) + cee*dveFi + cei*dveFe + cei*dviFi + cii*dviFe - 2*cei)
-    cei = ceiold + dt/T*( (Fe-fecontold)*(Fi-ficontold) + cee*dveFi + ceiold*dveFe/2 + ceiold*dviFi/2 + cii*dviFe - ceiold + cei*dveFe/2 + cei*dviFi/2 - cei)
-    cii += dt/T*( Fi*(1/T-Fi)/500 + (Fi-ficontold)**2 + 2*cei*dveFi + 2*cii*dviFi - 2*cii)
-    cii = ciiold + dt/T*( Fi*(1/T-Fi)/500 + (Fi-ficontold)**2 + 2*cei*dveFi + ciiold*dviFi - ciiold + cii*dviFi - cii)
+    # cee += dt/T*( Fe*(1/T-Fe)/500 + (Fe-fecontold)**2 + 2*cee*dveFe + 2*cei*dviFe - 2*cee)
+    # cee = ceeold + dt/T*( Fe*(1/T-Fe)/500 + (Fe-fecontold)**2 + ceeold*dveFe + 2*cei*dviFe - ceeold + cee*dveFe - cee)
+    # cei += dt/T*( (Fe-fecontold)*(Fi-ficontold) + cee*dveFi + cei*dveFe + cei*dviFi + cii*dviFe - 2*cei)
+    # cei = ceiold + dt/T*( (Fe-fecontold)*(Fi-ficontold) + cee*dveFi + ceiold*dveFe/2 + ceiold*dviFi/2 + cii*dviFe - ceiold + cei*dveFe/2 + cei*dviFi/2 - cei)
+    # cii += dt/T*( Fi*(1/T-Fi)/500 + (Fi-ficontold)**2 + 2*cei*dveFi + 2*cii*dviFi - 2*cii)
+    # cii = ciiold + dt/T*( Fi*(1/T-Fi)/500 + (Fi-ficontold)**2 + 2*cei*dveFi + ciiold*dviFi - ciiold + cii*dviFi - cii)
 
     if cee<1e-9: cee=1e-9
     if cii<1e-9: cii=1e-9
