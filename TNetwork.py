@@ -1,4 +1,5 @@
 from brian2 import *
+from mytools import double_gaussian
 prefs.codegen.target = "numpy"
 
 start_scope()
@@ -8,7 +9,7 @@ defaultclock.dt = DT*ms
 N_inh = 500 # number of inhibitory neurons
 N_exc = 500 # number of excitatory neurons
 
-TotTime=1000 # Simulation duration (ms)
+TotTime=2000 # Simulation duration (ms)
 duration = TotTime*ms
 tt = np.linspace(0,TotTime, int(TotTime/DT))
 
@@ -51,7 +52,7 @@ G_inh.Tsyn = 5.*ms
 # cell parameters
 G_inh.Cm = 200.*pF
 G_inh.gl = 10.*nS
-G_inh.Vt = -45.*mV
+G_inh.Vt = -45.*mV # -45
 G_inh.Dt = 2.5*mV
 G_inh.tau_w = 200.*ms
 G_inh.Is = 0.0*nA # external input
@@ -75,7 +76,7 @@ G_exc.Tsyn = 5.*ms
 # cell parameters
 G_exc.Cm = 160.*pF
 G_exc.gl = 10.*nS
-G_exc.Vt = -50.*mV
+G_exc.Vt = -50.*mV # -50
 G_exc.Dt = 4.5*mV
 G_exc.tau_w = 200.*ms
 G_exc.Is = 0.0*nA # ext inp
@@ -91,7 +92,9 @@ P_ed = PoissonGroup(8000, rates=ext_inp)
 # var_P = TimedArray(4/2*(1-np.cos(200*np.pi*tt))*Hz, defaultclock.dt)
 # P_ed=PoissonGroup(8000, rates='var_P(t)')
 
-var_STIM = TimedArray([0*Hz,0*Hz,20*Hz,0*Hz], duration/4)
+# var_STIM = TimedArray([0*Hz,0*Hz,0*Hz,0*Hz], duration/4)
+stim=double_gaussian(tt, 1e3, 0.02e3, 0.2e3, 20)
+var_STIM = TimedArray(stim*Hz, defaultclock.dt)
 STIM_ed=PoissonGroup(500, rates='var_STIM(t)')
 
 
@@ -136,6 +139,7 @@ M1G_exc = SpikeMonitor(G_exc)
 FRG_exc = PopulationRateMonitor(G_exc)
 
 FRG_ed = PopulationRateMonitor(P_ed)
+FRG_stim = PopulationRateMonitor(STIM_ed)
 
 
 # Useful trick to record global variables ------------------------------------------------------
@@ -198,6 +202,8 @@ TimBinned,popRateG_inh=bin_array(time_array, BIN, time_array),bin_array(LfrG_inh
 
 LfrG_ed=array(FRG_ed.rate/Hz)
 TimBinned,popRateG_ed=bin_array(time_array, BIN, time_array),bin_array(LfrG_ed, BIN, time_array)
+LfrG_stim=array(FRG_stim.rate/Hz)
+TimBinned,popRateG_stim=bin_array(time_array, BIN, time_array),bin_array(LfrG_stim, BIN, time_array)
 
 meanRate_inh, meanRate_exc = np.mean(popRateG_inh), np.mean(popRateG_exc)
 
@@ -220,7 +226,7 @@ ax2.axhline(meanRate_inh, c='r',ls='--', label=f'mean inh: {meanRate_inh:.2f}')
 ax2.plot(TimBinned,popRateG_exc, 'g')
 ax2.axhline(meanRate_exc, c='g',ls='--', label=f'mean exc: {meanRate_exc:.2f}')
 
-ax2.plot(TimBinned,popRateG_ed, c='black')
+ax2.plot(TimBinned,popRateG_stim, c='black')
 
 
 # ax2.set_title(f'mean inh: {meanRate_inh:.2f} | mean exc: {meanRate_exc:.2f}')
@@ -228,11 +234,11 @@ ax2.set_xlabel('Time (ms)')
 ax2.set_ylabel('Firing Rate (Hz)')
 plt.legend()
 
-name_fig='TNetwork_PLOT.png'
+name_fig='gfx\\TNetwork_PLOT.png'
 plt.savefig(name_fig)
 
 # SAVE
-np.save('TNetwork_out_stim', np.vstack((popRateG_exc,popRateG_inh)))
+np.save('data\\TNetwork_out_stim', np.vstack((popRateG_exc,popRateG_inh)))
 
 # name_rates='FR_2pop_Reg_ext_'+str(ext_inp)+'.npy'
 # np.save(name_rates,np.array([BIN, TimBinned, popRateG_inh,popRateG_exc,LfrG_inh,LfrG_exc], dtype=object))

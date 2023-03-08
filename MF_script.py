@@ -147,7 +147,7 @@ stim=double_gaussian(t, 1, 0.01, 0.2, 20)
 
 #-initial conds
 fecont=0;
-ficont=0;
+ficont=10;
 we=fecont*b*Tw
 wi=ficont*b*Tw
 cee,cei,cii=.5,.5,.5
