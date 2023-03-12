@@ -1,10 +1,11 @@
-# Model from  Di Volo et al. Neural Comp. 2019
+# second order MF for thalamic TC and RE cell populations
 
 
 import numpy as np
 import matplotlib.pylab as plt
+import matplotlib.gridspec as gridspec
 from scipy.special import erfc
-from mytools import progressBar, double_gaussian
+from mytools import progressBar,double_gaussian,ornstein_uhlenbeck
 
 
 def TF(typ,fexc,finh,adapt):
@@ -49,6 +50,7 @@ def TF(typ,fexc,finh,adapt):
     
     sV = np.sqrt(fe*(Ue*Te)*(Ue*Te)/2./(Te+Tm)+fi*(Ui*Ti)*(Ui*Ti)/2./(Ti+Tm));
     if sV<1e-4: sV=1e-4
+    # if typ=='TC': sV*=0.5
 
     Tv = ( fe*(Ue*Te)*(Ue*Te) + fi*(Qi*Ui)*(Qi*Ui)) /( fe*(Ue*Te)*(Ue*Te)/(Te+Tm) + fi*(Qi*Ui)*(Qi*Ui)/(Ti+Tm) );
     TvN = Tv*Gl/Cm;
@@ -108,24 +110,25 @@ Ei=-80*1.e-3
 #-load fit params
 PTC=np.load('data\\NEW2params_TC.npy')
 PRE=np.load('data\\NEW2params_RE.npy')
+# print(PTC[0],PRE[0])
 # PTC=np.load("C:\VSCode\DB_comparison\mf\data\FS-cell_CONFIG1_fit.npy")[[0,1,2,3,5,8,9,6,10,7]]
 # PRE=np.load("C:\VSCode\DB_comparison\mf\data\RS-cell_CONFIG1_fit.npy")[[0,1,2,3,5,8,9,6,10,7]]
 
 
-#=MF and numerics params
-T=10e-3
+#TAG=MF and numerics params
+T=15e-3
 
-tfinal=2 # s
+tfinal=1 # s
 dt=5e-4 # s
-df=1e-5 # Hz
+df=1e-22 # Hz
 tsteps=int(tfinal/dt)
 
-t = np.linspace(0, tfinal, tsteps)
+t=np.linspace(0, tfinal, tsteps)
 
 
 #=CORTEX external input
 #---constant
-external_input=np.full(tsteps, 4.)
+external_input=np.full(tsteps, 1)
 # external_input+=np.random.randn(tsteps)/2
 
 #-timeframe
@@ -135,19 +138,23 @@ external_input=np.full(tsteps, 4.)
 
 #-sinus
 # ampl=4
-# freq=10
+# freq=1
 # external_input = ampl/2*(1-np.cos(freq*2*np.pi*t))
 
+#-noise
+# external_input=ornstein_uhlenbeck(tsteps,tfinal, 10, .5, 1, start=.5,seed=20)
+# external_input[external_input<0]=0
+
 #=STIM (Peripherie?)
-# stim=np.zeros(tsteps)
-stim=double_gaussian(t, 1, 0.01, 0.2, 20)
+stim=np.zeros(tsteps)
+# stim=double_gaussian(t, .5, 0.01, 0.2, 20)
 # stim[int(tsteps*2/4):int(tsteps*3/4)] = 20.
 # stim[int(tsteps/2):int(tsteps/2)+50] = 20
 
 
 #-initial conds
 fecont=0;
-ficont=10;
+ficont=.1;
 we=fecont*b*Tw
 wi=ficont*b*Tw
 cee,cei,cii=.5,.5,.5
@@ -193,14 +200,19 @@ for i in progressBar(range(len(t))):
     # dvidveFi = ( ( TF('RE',REfe+df,ficont+df,wi) - Fi )/df - dveFi )/df
     # dvidviFi = ( dviFi*df - Fi + TF('RE',REfe,ficont-df,wi) )/df**2
     # dvedviFi = ( ( TF('RE',REfe+df,ficont+df,wi) - Fi )/df - dviFi )/df
+    #-comment
     dvedveFe = ( TF('TC',TCfe+df,ficont,we) - 2*Fe + TF('TC',TCfe-df,ficont,we) )/df**2
-    dvidveFe = ( (TF('TC',TCfe+df/2,ficont+df/2,we)-TF('TC',TCfe-df/2,ficont+df/2,we)) - (TF('TC',TCfe+df/2,ficont-df/2,we)-TF('TC',TCfe-df/2,ficont-df/2,we)) )/df**2
+    dvidveFe = ( (TF('TC',TCfe+df/2,ficont+df/2,we)-TF('TC',TCfe-df/2,ficont+df/2,we))\
+                - (TF('TC',TCfe+df/2,ficont-df/2,we)-TF('TC',TCfe-df/2,ficont-df/2,we)) )/df**2
     dvidviFe = ( TF('TC',TCfe,ficont+df,we) - 2*Fe + TF('TC',TCfe,ficont-df,we) )/df**2
-    dvedviFe = ( (TF('TC',TCfe+df/2,ficont+df/2,we)-TF('TC',TCfe+df/2,ficont-df/2,we)) - (TF('TC',TCfe-df/2,ficont+df/2,we)-TF('TC',TCfe-df/2,ficont-df/2,we)) )/df**2
+    dvedviFe = ( (TF('TC',TCfe+df/2,ficont+df/2,we)-TF('TC',TCfe+df/2,ficont-df/2,we))\
+                - (TF('TC',TCfe-df/2,ficont+df/2,we)-TF('TC',TCfe-df/2,ficont-df/2,we)) )/df**2
     dvedveFi = ( TF('RE',REfe+df,ficont,wi) - 2*Fi + TF('RE',REfe-df,ficont,wi) )/df**2
-    dvidveFi = ( (TF('RE',REfe+df/2,ficont+df/2,wi)-TF('RE',REfe-df/2,ficont+df/2,wi)) - (TF('RE',REfe+df/2,ficont-df/2,wi)-TF('RE',REfe-df/2,ficont-df/2,wi)) )/df**2
+    dvidveFi = ( (TF('RE',REfe+df/2,ficont+df/2,wi)-TF('RE',REfe-df/2,ficont+df/2,wi))\
+                - (TF('RE',REfe+df/2,ficont-df/2,wi)-TF('RE',REfe-df/2,ficont-df/2,wi)) )/df**2
     dvidviFi = ( TF('RE',REfe,ficont+df,wi) - 2*Fi + TF('RE',REfe,ficont-df,wi) )/df**2
-    dvedviFi = ( (TF('RE',REfe+df/2,ficont+df/2,wi)-TF('RE',REfe+df/2,ficont-df/2,wi)) - (TF('RE',REfe-df/2,ficont+df/2,wi)-TF('RE',REfe-df/2,ficont-df/2,wi)) )/df**2
+    dvedviFi = ( (TF('RE',REfe+df/2,ficont+df/2,wi)-TF('RE',REfe+df/2,ficont-df/2,wi))\
+                - (TF('RE',REfe-df/2,ficont+df/2,wi)-TF('RE',REfe-df/2,ficont-df/2,wi)) )/df**2
 
 
     #-first order EULER
@@ -216,9 +228,8 @@ for i in progressBar(range(len(t))):
     #-second order MF
     fecont += dt/T*( (Fe-fecont) + (cee*dvedveFe+cei*dvedviFe+cii*dvidviFe+cei*dvidveFe)/2 )
     ficont += dt/T*( (Fi-ficont) + (cee*dvedveFi+cei*dvedviFi+cii*dvidviFi+cei*dvidveFi)/2 )
-    
-    #TODO: second order HEUN
 
+    #-adapt MF
     we += dt*MFw('TC',we,fecontold,0) # fecontold = v_e here
     wi += dt*MFw('RE',wi,REfe,ficontold) # ficontold = v_i = finh (for MPF)
 
@@ -249,18 +260,21 @@ for i in progressBar(range(len(t))):
     if cee<1e-9: cee=1e-9
     if cii<1e-9: cii=1e-9
     if cei<1e-9: cei=1e-9
-    cee=np.sqrt(cee)
-    cei=np.sqrt(cei)
-    cii=np.sqrt(cii)
 
+    # cee=np.sqrt(cee)
+    # cei=np.sqrt(cei)
+    # cii=np.sqrt(cii)
+    # LScee.append(cee)
+    # LScii.append(cii)
     LScee.append(np.sqrt(cee))
     LScii.append(np.sqrt(cii))
+
     # LScee1.append(np.sqrt(cee1))
     # LScii1.append(np.sqrt(cii1))
 
     #-test
-    # test.append(dvedveFe)
-    # test2.append(dvidveFe)
+    # test.append((Fe-fecont))
+    # test2.append((cee*dvedveFe+cei*dvedviFe+cii*dvidviFe+cei*dvidveFe)/2)
 
 
 #==================
@@ -272,7 +286,7 @@ LScee=np.array(LScee)
 LScii=np.array(LScii)
 
 #-SAVE
-np.save('data\\MF_out_we', np.vstack((LSfe,LSfi)))
+np.save('data\\MF_out', np.vstack((LSfe,LSfi)))
 np.save('data\\MF_out_cov', np.vstack((LScee,LScii)))
 # np.savetxt('test.txt',test)
 # np.save('data\\MF_out_adaptnew', np.vstack((LSfe,LSfi)))
@@ -283,36 +297,48 @@ np.save('data\\MF_out_cov', np.vstack((LScee,LScii)))
 # plt.plot(test2)
 # plt.show()
 # plt.plot(LScee, 'b')
-# plt.plot(LScee1, '--b')
 # plt.plot(LScii, 'r')
+# plt.plot(LScee1, '--b')
 # plt.plot(LScii1, '--r')
 # plt.show()
 
 #===PLOTS
-fig, ax=plt.subplots(2,2, figsize=(10,6), width_ratios=[1,3], height_ratios=[2,1])
-fig.delaxes(ax[0,0])
+fig = plt.figure()
+fig.subplots_adjust(hspace=0.001)
+gs = gridspec.GridSpec(2,1, height_ratios=[3,1])
+ax3=fig.add_subplot(gs[0])
+ax2=fig.add_subplot(gs[1],sharex=ax3)
+ax1=ax3.twinx()
 
-ax[1,0].plot(LSfe, LSfi, c='black')
-ax[1,0].plot(LSfe[0], LSfi[0], '.', c='black')
-ax[1,0].set_xlabel('LSfe (Hz)')
-ax[1,0].set_ylabel('LSfi (Hz)')
+ax3.set_axis_off()
+ax1.tick_params(labelright=False,labelbottom=False,labelleft=True,labeltop=False,which='both',
+                left=True,right=True,bottom=False, top=False)
+ax2.tick_params(which='both', right=True,grid_alpha=0.3)
 
-ax[0,1].plot(t, LSfe, c='b', label='LSfe')
-ax[0,1].fill_between(t, LSfe-LScee, LSfe+LScee, color='b', label='cee', alpha=0.2)
-ax[0,1].plot(t, LSfi, c='r', label='LSfi')
-ax[0,1].fill_between(t, LSfi-LScii, LSfi+LScii, color='r', label='cii', alpha=0.2)
-ax[0,1].plot(t,external_input, c='black', ls='--', label='Dext')
-ax[0,1].plot(t,stim, c='black', label='stim')
-ax[0,1].legend(loc='upper right')
-# ax[0,1].set_xlabel('time (s)')
-ax[0,1].set_ylabel('frequencies (Hz)')
-ax[0,1].set_ylim(-1,max(np.concatenate([LSfe,LSfi]))+5)
+ax1.set_xlim(0,tfinal)
+ax1.set_ylim(-1,max(np.concatenate([LSfe,LSfi]))+10)
 
-ax[1,1].plot(t, LSwe*1e12, c='b', label='LSwe')
-ax[1,1].plot(t, LSwi*1e12, c='r', label='LSwi')
-ax[1,1].legend()
-ax[1,1].set_xlabel('time (s)')
-ax[1,1].set_ylabel('adaptation pA')
+ax1.plot(t, LSfe, c='b', label=r'$\nu_{\mathrm{TC}}$')
+ax1.fill_between(t, LSfe-LScee, LSfe+LScee, color='b', label=r'$\sigma_{\mathrm{TC}}$', alpha=0.2)
+ax1.plot(t, LSfi, c='r', label=r'$\nu_{\mathrm{RE}}$')
+ax1.fill_between(t, LSfi-LScii, LSfi+LScii, color='r', label=r'$\sigma_{\mathrm{RE}}$', alpha=0.2)
+ax1.plot(t,external_input, c='black', label=r'$P_C$')
+ax1.plot(t,stim, c='black', ls='--', label=r'$P_S$')
 
-plt.tight_layout()
-plt.savefig('gfx\\MF_PLOT.png', dpi=250)
+ax2.grid()
+
+ax2.plot(t, LSwe*1e12, c='b', label=r'$\omega_{\mathrm{TC}}$')
+ax2.plot(t, LSwi*1e12, c='r', label=r'$\omega_{\mathrm{RE}}$')
+
+
+ax1.yaxis.set_label_position('left')
+ax1.set_ylabel(r'frequency $\nu$ [Hz]',fontsize=12)
+
+ax2.set_xlabel(r'time $t$ [s]',fontsize=12)
+ax2.set_ylabel(r'adaptation $\omega$ [pA]',fontsize=10,position=(0,0.5))
+
+leg1 = ax1.legend(bbox_to_anchor=(1.205, 1.0), loc=1, borderaxespad=0.)
+leg2 = ax2.legend(bbox_to_anchor=(1.215, 1.0), loc=1, borderaxespad=0.)
+ax1.add_artist(leg1)
+
+plt.savefig('gfx\\MF_PLOT.png', dpi=200, bbox_inches='tight')

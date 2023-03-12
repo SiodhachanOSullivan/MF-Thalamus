@@ -49,6 +49,7 @@ def TF(typ,fexc,finh,adapt):
     
     sV = np.sqrt(fe*(Ue*Te)*(Ue*Te)/2./(Te+Tm)+fi*(Ui*Ti)*(Ui*Ti)/2./(Ti+Tm));
     if sV<1e-4: sV=1e-4
+    sV*=0.1
 
     Tv = ( fe*(Ue*Te)*(Ue*Te) + fi*(Qi*Ui)*(Qi*Ui)) /( fe*(Ue*Te)*(Ue*Te)/(Te+Tm) + fi*(Qi*Ui)*(Qi*Ui)/(Ti+Tm) );
     TvN = Tv*Gl/Cm;
@@ -58,7 +59,7 @@ def TF(typ,fexc,finh,adapt):
     sV0=4e-3;
     DsV0=6e-3;
     TvN0=0.5;
-    DTvN0=1.;
+    DTvN0=2.;
 
     vthre = P[0] + P[1]*(muV-muV0)/DmuV0 + P[2]*(sV-sV0)/DsV0 + P[3]*(TvN-TvN0)/DTvN0 \
         + P[4]*((muV-muV0)/DmuV0)*((muV-muV0)/DmuV0) + P[5]*(muV-muV0)/DmuV0*(sV-sV0)/DsV0 + P[6]*(muV-muV0)/DmuV0*(TvN-TvN0)/DTvN0 + P[7]*((sV-sV0)/DsV0)*((sV-sV0)/DsV0) + P[8]*(sV-sV0)/DsV0*(TvN-TvN0)/DTvN0 + P[9]*((TvN-TvN0)/DTvN0)*((TvN-TvN0)/DTvN0);
@@ -72,7 +73,7 @@ def TF(typ,fexc,finh,adapt):
 
 def MFw(typ, w, fexc, finh):
     if typ=='TC':
-        adapt = -w/Tw+b*fexc
+        adapt = -w/Tw+bb*fexc
     if typ=='RE':
         a=8e-9
         Nexc=400
@@ -88,7 +89,7 @@ def MFw(typ, w, fexc, finh):
         muGe = Qe*Te*fe;
         muG = Gl+muGe+muGi;
         muV = (muGe*Ee+muGi*Ei+Gl*El-w)/muG;
-        adapt = -w/Tw+b*finh + a*(muV-El)/Tw
+        adapt = -w/Tw+bb*finh + a*(muV-El)/Tw
         
     return adapt
 
@@ -118,7 +119,8 @@ PRE=np.load('DATA\\NEW2params_RE.npy')
 
 
 tfinal=1. # s
-dt=5e-4 # s
+dt=1e-3 # s
+df=1e-5
 tsteps=int(tfinal/dt)
 
 t = np.linspace(0, tfinal, tsteps)
@@ -126,28 +128,35 @@ t = np.linspace(0, tfinal, tsteps)
 
 scanfe=[]
 scanfi=[]
+scancee=[]
+scancii=[]
 
+ff=4.
+bb=b
 frange=np.linspace(0.01,100,100)
-
 for ff in progressBar(frange):
+# brange=np.linspace(0,200,100)*1e-12
+# for bb in progressBar(brange):
 
     fecont=0;
     ficont=0;
-    we=fecont*b*Tw
-    wi=ficont*b*Tw
+    we=fecont*bb*Tw
+    wi=ficont*bb*Tw
+    cee,cei,cii=.5,.5,.5
     
     external_input=np.full(tsteps, ff)
     # external_input+=np.abs(np.random.randn(tsteps))*5
 
-    LSwe=[]
-    LSwi=[]
-    LSfe=[]
-    LSfi=[]
+    LSwe,LSwi=[],[]
+    LSfe,LSfi=[],[]
+    LScee,LScii=[],[]
+
     for i in range(len(t)):
         
         fecontold=fecont
         ficontold=ficont
         # weold,wiold=we,wi
+        ceeold,ceiold,ciiold=cee,cei,cii
         TCfe = external_input[i]#+stim[i]/8
         REfe = external_input[i]+fecont/16
 
@@ -157,10 +166,10 @@ for ff in progressBar(frange):
 
         #-TF derivatives
         # df=1e-5
-        # dveFe = ( TF('TC',TCfe+df/24,ficont,we) - Fe )/df/24
-        # dviFe = ( TF('TC',TCfe,ficont+df,we) - Fe )/df
-        # dveFi = ( TF('RE',REfe+df/12,ficont,wi) - Fi )/df/12
-        # dviFi = ( TF('RE',REfe,ficont+df/6,wi) - Fi )/df/6
+        dveFe = ( TF('TC',TCfe+df/24,ficont,we) - Fe )/df/24
+        dviFe = ( TF('TC',TCfe,ficont+df,we) - Fe )/df
+        dveFi = ( TF('RE',REfe+df/12,ficont,wi) - Fi )/df/12
+        dviFi = ( TF('RE',REfe,ficont+df/6,wi) - Fi )/df/6
 
         #-first order EULER
         fecont += dt/T*( (Fe-fecont) )
@@ -175,16 +184,38 @@ for ff in progressBar(frange):
         LSfe.append(float(fecont))
         LSfi.append(float(ficont))
 
-    scanfe.append(np.mean(LSfe))
-    scanfi.append(np.mean(LSfi))
+        cee += dt/T*( Fe*(1/T-Fe)/500 + (Fe-fecontold)**2 + 2*cee*dveFe + 2*ceiold*dviFe - 2*cee)
+        cei += dt/T*( (Fe-fecontold)*(Fi-ficontold) + cei*dveFe + ceeold*dveFi + ciiold*dviFe + cei*dviFi - 2*cei)
+        cii += dt/T*( Fi*(1/T-Fi)/500 + (Fi-ficontold)**2 + 2*cii*dviFi + 2*ceiold*dveFi - 2*cii)
+
+        if cee<1e-9: cee=1e-9
+        if cii<1e-9: cii=1e-9
+        if cei<1e-9: cei=1e-9
+        cee=np.sqrt(cee)
+        cei=np.sqrt(cei)
+        cii=np.sqrt(cii)
+
+        LScee.append(cee)
+        LScii.append(cii) 
+
+    scanfe.append(np.mean(LSfe[int(tsteps/2):]))
+    scanfi.append(np.mean(LSfi[int(tsteps/2):]))
+
+    scancee.append(np.mean(LScee[int(tsteps/2):]))
+    scancii.append(np.mean(LScii[int(tsteps/2):]))
 
 
+scanfe,scanfi=np.array(scanfe),np.array(scanfi)
+scancee,scancii=np.array(scancee),np.array(scancii)
 
 #-SAVE
-np.save('data\\MF_out_scan', np.vstack((scanfe,scanfi)))
+np.save('data\\MF_scan_freq_b', np.vstack((scanfe,scanfi)))
+np.save('data\\MF_scan_cov_b', np.vstack((scancee,scancii)))
 
 #-PLOT
-plt.plot(frange, scanfe, 'g')
+plt.plot(frange, scanfe, 'b')
 plt.plot(frange, scanfi, 'r')
+plt.fill_between(frange, scanfe-scancee, scanfe+scancee, color='b', alpha=0.2)
+plt.fill_between(frange, scanfi-scancii, scanfi+scancii, color='r', alpha=0.2)
 # plt.plot(frange, frange, c='black', ls='--')
 plt.show()

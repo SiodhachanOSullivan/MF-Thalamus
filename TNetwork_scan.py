@@ -13,12 +13,16 @@ duration = TotTime*ms
 tt = np.linspace(0,TotTime, int(TotTime/DT))
 
 
-Npts=15
-frange=np.linspace(0.01,100,Npts)
-
 meanRate_inh=[]
 meanRate_exc=[]
-for step, ff in enumerate(frange):
+
+Npts=20
+ff=4. # in Hz
+bb=10. # in pA
+# frange=np.linspace(0.01,30,Npts)
+# for step, ff in enumerate(frange):
+brange=np.linspace(0,200,Npts)
+for step, bb in enumerate(brange):
 
     print(f' {step+1}/{Npts}', end='\r')
 
@@ -46,10 +50,10 @@ for step, ff in enumerate(frange):
 
     # Population 1 [inhibitory] - RE - Reticular
 
-    b_inh = 10.*pA
+    b_inh = bb*pA
     G_inh = NeuronGroup(N_inh, eqs, threshold='v > -20*mV', reset='v = -55*mV; w += b_inh', refractory='5*ms', method='heun')
     # init:
-    G_inh.v = -65.*mV
+    G_inh.v = -55.*mV
     G_inh.w = 0.*pA
     # synaptic parameters
     G_inh.GsynI = 0.0*nS
@@ -70,10 +74,10 @@ for step, ff in enumerate(frange):
 
     # Population 2 [excitatory] - TC - Thalamocortical
 
-    b_exc = 10.*pA
+    b_exc = bb*pA
     G_exc = NeuronGroup(N_exc, eqs, threshold='v > -20.0*mV', reset='v = -50*mV; w += b_exc', refractory='5*ms',  method='heun')
     # init
-    G_exc.v = -65.*mV
+    G_exc.v = -50.*mV
     G_exc.w = 0.*pA
     # synaptic parameters
     G_exc.GsynI = 0.0*nS
@@ -182,20 +186,21 @@ for step, ff in enumerate(frange):
     # LfrG_ed=array(FRG_ed.rate/Hz)
     # TimBinned,popRateG_ed=bin_array(time_array, BIN, time_array),bin_array(LfrG_ed, BIN, time_array)
 
-    meanRate_inh.append(np.mean(popRateG_inh))
-    meanRate_exc.append(np.mean(popRateG_exc))
+    meanRate_inh.append(np.mean(popRateG_inh[int(len(popRateG_inh)/2):]))
+    meanRate_exc.append(np.mean(popRateG_exc[int(len(popRateG_exc)/2):]))
 
+
+
+# SAVE
+np.save('data\\TNetwork_scan_b', np.vstack((meanRate_exc,meanRate_inh)))
 
 
 # create the figure
 
-plt.plot(frange, meanRate_exc, 'og')
-plt.plot(frange, meanRate_inh, 'or')
+plt.plot(brange, meanRate_exc, 'og')
+plt.plot(brange, meanRate_inh, 'or')
 plt.show()
 # name_fig='TNetwork_scan_PLOT.png'
 # plt.savefig(name_fig)
-
-# SAVE
-np.save('data\\TNetwork_scan', np.vstack((meanRate_exc,meanRate_inh)))
 
 print()

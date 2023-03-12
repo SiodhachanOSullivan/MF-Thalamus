@@ -1,5 +1,5 @@
 from brian2 import *
-from mytools import double_gaussian
+from mytools import double_gaussian,ornstein_uhlenbeck
 prefs.codegen.target = "numpy"
 
 start_scope()
@@ -9,9 +9,10 @@ defaultclock.dt = DT*ms
 N_inh = 500 # number of inhibitory neurons
 N_exc = 500 # number of excitatory neurons
 
-TotTime=2000 # Simulation duration (ms)
+TotTime=1000 # Simulation duration (ms)
 duration = TotTime*ms
-tt = np.linspace(0,TotTime, int(TotTime/DT))
+tsteps=int(TotTime/DT)
+tt = np.linspace(0,TotTime, tsteps)
 
 
 # Equations ----------------------------------------------------------------------------------
@@ -41,7 +42,7 @@ Tsyn:second
 b_inh = 10.*pA
 G_inh = NeuronGroup(N_inh, eqs, threshold='v > -20*mV', reset='v = -55*mV; w += b_inh', refractory='5*ms', method='heun')
 # init:
-G_inh.v = -65.*mV
+G_inh.v = -55.*mV
 G_inh.w = 0.*pA
 # synaptic parameters
 G_inh.GsynI = 0.0*nS
@@ -65,7 +66,7 @@ G_inh.a = 8.0*nS
 b_exc = 10.*pA
 G_exc = NeuronGroup(N_exc, eqs, threshold='v > -20.0*mV', reset='v = -50*mV; w += b_exc', refractory='5*ms',  method='heun')
 # init
-G_exc.v = -65.*mV
+G_exc.v = -50.*mV
 G_exc.w = 0.*pA
 # synaptic parameters
 G_exc.GsynI = 0.0*nS
@@ -85,16 +86,17 @@ G_exc.a = 0.*nS
 
 
 # external drive--------------------------------------------------------------------------
-ext_inp = 4*Hz
+ext_inp = 1.*Hz
 P_ed = PoissonGroup(8000, rates=ext_inp)
 
 # var_P = TimedArray([4*Hz,4*Hz,4*Hz,4*Hz,8*Hz], duration/5)
-# var_P = TimedArray(4/2*(1-np.cos(200*np.pi*tt))*Hz, defaultclock.dt)
+# var_P = TimedArray(4/2*(1-np.cos(1*20*np.pi*tt))*Hz, defaultclock.dt)
+# var_P = TimedArray(ornstein_uhlenbeck(tsteps, TotTime*1e-3, 10, .5, 1,seed=20)*Hz, defaultclock.dt)
 # P_ed=PoissonGroup(8000, rates='var_P(t)')
 
-# var_STIM = TimedArray([0*Hz,0*Hz,0*Hz,0*Hz], duration/4)
-stim=double_gaussian(tt, 1e3, 0.02e3, 0.2e3, 20)
-var_STIM = TimedArray(stim*Hz, defaultclock.dt)
+var_STIM = TimedArray([0*Hz,0*Hz,0*Hz,0*Hz], duration/4)
+# stim=double_gaussian(tt, 1e3, 0.02e3, 0.2e3, 20)
+# var_STIM = TimedArray(stim*Hz, defaultclock.dt)
 STIM_ed=PoissonGroup(500, rates='var_STIM(t)')
 
 
@@ -209,6 +211,11 @@ meanRate_inh, meanRate_exc = np.mean(popRateG_inh), np.mean(popRateG_exc)
 
 
 
+# SAVE
+
+np.save('data\\TNetwork_out', np.vstack((popRateG_exc,popRateG_inh)))
+
+
 # create the figure
 
 fig=figure(figsize=(8,12))
@@ -226,7 +233,7 @@ ax2.axhline(meanRate_inh, c='r',ls='--', label=f'mean inh: {meanRate_inh:.2f}')
 ax2.plot(TimBinned,popRateG_exc, 'g')
 ax2.axhline(meanRate_exc, c='g',ls='--', label=f'mean exc: {meanRate_exc:.2f}')
 
-ax2.plot(TimBinned,popRateG_stim, c='black')
+ax2.plot(TimBinned,popRateG_ed, c='black')
 
 
 # ax2.set_title(f'mean inh: {meanRate_inh:.2f} | mean exc: {meanRate_exc:.2f}')
@@ -237,8 +244,6 @@ plt.legend()
 name_fig='gfx\\TNetwork_PLOT.png'
 plt.savefig(name_fig)
 
-# SAVE
-np.save('data\\TNetwork_out_stim', np.vstack((popRateG_exc,popRateG_inh)))
 
 # name_rates='FR_2pop_Reg_ext_'+str(ext_inp)+'.npy'
 # np.save(name_rates,np.array([BIN, TimBinned, popRateG_inh,popRateG_exc,LfrG_inh,LfrG_exc], dtype=object))
